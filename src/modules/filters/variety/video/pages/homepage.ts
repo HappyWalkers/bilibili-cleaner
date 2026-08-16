@@ -132,7 +132,7 @@ class VideoFilterHomepage implements IMainFilter {
         this.videoDurationFilter.setParam(GM_getValue(GM_KEYS.black.duration.valueKey, 0))
         this.videoViewsFilter.setParam(GM_getValue(GM_KEYS.black.views.valueKey, 0))
         this.videoTitleFilter.setParam(GM_getValue(GM_KEYS.black.title.valueKey, []))
-        this.videoClickbaitFilter.setParam(GM_getValue(GM_KEYS.black.clickbait.valueKey, 80))
+        this.videoClickbaitFilter.setParam(GM_getValue(GM_KEYS.black.clickbait.valueKey, 69))
         this.videoPubdateFilter.setParam(GM_getValue(GM_KEYS.black.pubdate.valueKey, 0))
         this.videoUploaderFilter.setParam(GM_getValue(GM_KEYS.black.uploader.valueKey, []))
         this.videoUploaderKeywordFilter.setParam(GM_getValue(GM_KEYS.black.uploaderKeyword.valueKey, []))
@@ -417,7 +417,7 @@ export const videoFilterHomepageGroups: Group[] = [
                 name: '判定阈值（越高越保守）',
                 minValue: 50,
                 maxValue: 99,
-                defaultValue: 80,
+                defaultValue: 69,  // tuned for the distilled model (server/model/); see server/tests/test_scorer.py
                 step: 1,
                 addonText: '%',
                 disableValue: -1,
