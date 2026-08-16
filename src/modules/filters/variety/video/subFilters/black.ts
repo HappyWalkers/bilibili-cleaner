@@ -1,4 +1,5 @@
 import { BooleanFilter } from '@/modules/filters/core/subFilters/booleanFilter'
+import { ClickbaitFilter } from '@/modules/filters/core/subFilters/clickbaitFilter'
 import { KeywordFilter } from '@/modules/filters/core/subFilters/keywordFilter'
 import { NumberMaxFilter } from '@/modules/filters/core/subFilters/numberMaxFilter'
 import { NumberMinFilter } from '@/modules/filters/core/subFilters/numberMinFilter'
@@ -13,6 +14,8 @@ export class VideoDurationFilter extends NumberMinFilter {}
 export class VideoQualityFilter extends NumberMinFilter {}
 
 export class VideoTitleFilter extends KeywordFilter {}
+
+export class VideoClickbaitFilter extends ClickbaitFilter {}
 
 export class VideoPubdateFilter extends NumberMaxFilter {}
 

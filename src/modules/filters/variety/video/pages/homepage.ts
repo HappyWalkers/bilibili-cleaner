@@ -1,6 +1,7 @@
 import { coreCheck } from '@/modules/filters/core/core'
 import config from '@/config'
 import { Group } from '@/types/collection'
+import { clickbaitScorer } from '@/utils/clickbaitScorer'
 import { ContextMenuTargetHandler, FilterContextMenu, IMainFilter, SelectorResult, SubFilterPair } from '@/types/filter'
 import { logger } from '@/utils/logger'
 import { isPageHomepage } from '@/utils/pageType'
@@ -10,6 +11,7 @@ import {
     VideoBvidFilter,
     VideoDurationFilter,
     VideoPubdateFilter,
+    VideoClickbaitFilter,
     VideoTitleFilter,
     VideoUploaderFilter,
     VideoUploaderKeywordFilter,
@@ -46,6 +48,10 @@ const GM_KEYS = {
         title: {
             statusKey: 'homepage-title-keyword-filter-status',
             valueKey: 'global-title-keyword-filter-value',
+        },
+        clickbait: {
+            statusKey: 'homepage-clickbait-filter-status',
+            valueKey: 'global-clickbait-threshold-value',
         },
     },
     white: {
@@ -110,6 +116,7 @@ class VideoFilterHomepage implements IMainFilter {
     videoDurationFilter = new VideoDurationFilter()
     videoViewsFilter = new VideoViewsFilter()
     videoTitleFilter = new VideoTitleFilter()
+    videoClickbaitFilter = new VideoClickbaitFilter()
     videoPubdateFilter = new VideoPubdateFilter()
     videoUploaderFilter = new VideoUploaderFilter()
     videoUploaderKeywordFilter = new VideoUploaderKeywordFilter()
@@ -125,6 +132,7 @@ class VideoFilterHomepage implements IMainFilter {
         this.videoDurationFilter.setParam(GM_getValue(GM_KEYS.black.duration.valueKey, 0))
         this.videoViewsFilter.setParam(GM_getValue(GM_KEYS.black.views.valueKey, 0))
         this.videoTitleFilter.setParam(GM_getValue(GM_KEYS.black.title.valueKey, []))
+        this.videoClickbaitFilter.setParam(GM_getValue(GM_KEYS.black.clickbait.valueKey, 80))
         this.videoPubdateFilter.setParam(GM_getValue(GM_KEYS.black.pubdate.valueKey, 0))
         this.videoUploaderFilter.setParam(GM_getValue(GM_KEYS.black.uploader.valueKey, []))
         this.videoUploaderKeywordFilter.setParam(GM_getValue(GM_KEYS.black.uploaderKeyword.valueKey, []))
@@ -134,6 +142,16 @@ class VideoFilterHomepage implements IMainFilter {
     }
 
     async check(mode?: 'full' | 'incr') {
+        // bilibili swaps a skeleton `.container` for the real one after hydration.
+        // If we kept the old node we would happily filter a detached tree forever,
+        // so re-resolve whenever the current target is no longer in the document.
+        if (!this.target || !this.target.isConnected) {
+            const fresh = document.querySelector<HTMLElement>('.container')
+            if (fresh && fresh !== this.target) {
+                this.target = fresh
+                new MutationObserver(() => this.checkIncr()).observe(fresh, { childList: true })
+            }
+        }
         if (!this.target) {
             return
         }
@@ -144,6 +162,7 @@ class VideoFilterHomepage implements IMainFilter {
                 this.videoDurationFilter.isEnable ||
                 this.videoViewsFilter.isEnable ||
                 this.videoTitleFilter.isEnable ||
+                this.videoClickbaitFilter.isEnable ||
                 this.videoUploaderFilter.isEnable ||
                 this.videoUploaderKeywordFilter.isEnable ||
                 this.videoPubdateFilter.isEnable
@@ -189,6 +208,7 @@ class VideoFilterHomepage implements IMainFilter {
         this.videoDurationFilter.isEnable && blackPairs.push([this.videoDurationFilter, selectorFns.duration])
         this.videoViewsFilter.isEnable && blackPairs.push([this.videoViewsFilter, selectorFns.views])
         this.videoTitleFilter.isEnable && blackPairs.push([this.videoTitleFilter, selectorFns.title])
+        this.videoClickbaitFilter.isEnable && blackPairs.push([this.videoClickbaitFilter, selectorFns.title])
         this.videoPubdateFilter.isEnable && blackPairs.push([this.videoPubdateFilter, selectorFns.pubdate])
         this.videoUploaderFilter.isEnable && blackPairs.push([this.videoUploaderFilter, selectorFns.uploader])
         this.videoUploaderKeywordFilter.isEnable &&
@@ -365,6 +385,45 @@ export const videoFilterHomepageGroups: Group[] = [
                     mainFilter.videoUploaderKeywordFilter.setParam(
                         GM_getValue(GM_KEYS.black.uploaderKeyword.valueKey, []),
                     )
+                    mainFilter.checkFull()
+                },
+            },
+        ],
+    },
+    {
+        name: '标题党过滤（AI 模型）',
+        items: [
+            {
+                type: 'switch',
+                id: GM_KEYS.black.clickbait.statusKey,
+                name: '启用 标题党过滤（需本地评分服务）',
+                noStyle: true,
+                description: [
+                    '用 XLM-RoBERTa 模型判断标题是否为标题党，替代关键词硬匹配',
+                    '需先运行 server/scorer.py，未运行时不会隐藏任何视频',
+                ],
+                enableFn: () => {
+                    mainFilter.videoClickbaitFilter.enable()
+                    mainFilter.checkFull()
+                },
+                disableFn: () => {
+                    mainFilter.videoClickbaitFilter.disable()
+                    mainFilter.checkFull()
+                },
+            },
+            {
+                type: 'number',
+                id: GM_KEYS.black.clickbait.valueKey,
+                name: '判定阈值（越高越保守）',
+                minValue: 50,
+                maxValue: 99,
+                defaultValue: 80,
+                step: 1,
+                addonText: '%',
+                disableValue: -1,
+                fn: (value: number) => {
+                    mainFilter.videoClickbaitFilter.setParam(value)
+                    clickbaitScorer.clearCache()
                     mainFilter.checkFull()
                 },
             },

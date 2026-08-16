@@ -1,7 +1,7 @@
 import vue from '@vitejs/plugin-vue'
 import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
-import monkey, { cdn } from 'vite-plugin-monkey'
+import monkey from 'vite-plugin-monkey'
 import tailwindcss from '@tailwindcss/vite'
 import tailwindShadowDOM from 'vite-plugin-tailwind-shadowdom'
 
@@ -14,12 +14,13 @@ export default defineConfig({
         monkey({
             entry: 'src/main.ts',
             userscript: {
-                name: 'bilibili 页面净化大师',
+                name: 'bilibili 标题党过滤器 (AI)',
                 namespace: 'http://tampermonkey.net/',
-                version: '4.5.5',
+                version: '1.0.0',
                 description:
-                    '净化 B站/哔哩哔哩 页面，支持「精简功能、播放器净化、过滤视频、过滤评论、全站黑白名单」，提供 300+ 功能，定制自己的 B 站',
-                author: 'festoney8',
+                    '在 bilibili 页面净化大师基础上，用 XLM-RoBERTa 模型替代关键词匹配来过滤标题党视频',
+                author: 'festoney8 (fork: model-based clickbait filter)',
+                connect: ['127.0.0.1', 'localhost'],
                 homepage: 'https://github.com/festoney8/bilibili-cleaner',
                 supportURL: 'https://github.com/festoney8/bilibili-cleaner',
                 license: 'MIT',
@@ -47,16 +48,10 @@ export default defineConfig({
                 ],
                 icon: 'https://www.bilibili.com/favicon.ico',
                 'run-at': 'document-start',
-                downloadURL:
-                    'https://update.greasyfork.org/scripts/479861/bilibili%20%E9%A1%B5%E9%9D%A2%E5%87%80%E5%8C%96%E5%A4%A7%E5%B8%88.user.js',
-                updateURL:
-                    'https://update.greasyfork.org/scripts/479861/bilibili%20%E9%A1%B5%E9%9D%A2%E5%87%80%E5%8C%96%E5%A4%A7%E5%B8%88.meta.js',
             },
-            build: {
-                externalGlobals: {
-                    vue: cdn.npmmirror('Vue', 'dist/vue.global.prod.js'),
-                },
-            },
+            // Vue is bundled rather than pulled from a CDN via @require:
+            // a local-first fork should not fail to start because an external
+            // host is slow or blocked.
         }),
     ],
     resolve: {

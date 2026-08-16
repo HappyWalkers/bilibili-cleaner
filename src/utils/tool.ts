@@ -135,6 +135,20 @@ export const waitForEle = async (
                     })
                 }
             })
+
+            // Fallback: the target may arrive inside a subtree that is appended as a
+            // whole, in which case addedNodes holds the wrapper and never the target
+            // itself (bilibili's `container is-version8` homepage does this, which
+            // left this.target undefined and silently disabled every video filter).
+            // Re-query after each batch so a nested target is still found.
+            if (!ele) {
+                const found = watchEle.querySelector(selector) as HTMLElement | null
+                if (found) {
+                    observer.disconnect()
+                    ele = found
+                    resolve(ele)
+                }
+            }
         })
         observer.observe(watchEle, { childList: true, subtree: true })
     })
