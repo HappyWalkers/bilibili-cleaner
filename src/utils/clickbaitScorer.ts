@@ -1,5 +1,6 @@
 import { logger } from '@/utils/logger'
 import { GM_xmlhttpRequest } from 'vite-plugin-monkey/dist/client'
+import { workerTransport } from './clickbaitWorkerTransport'
 
 /**
  * Clickbait scoring client.
@@ -26,7 +27,9 @@ export type Transport = (
     titles: string[],
 ) => Promise<number[]>
 
-const gmTransport: Transport = (endpoint, titles) =>
+/** GM_xmlhttpRequest -> local server (server/scorer.py). Kept for local dev/eval
+ * parity checks against the in-browser path; no longer the default. */
+export const gmTransport: Transport = (endpoint, titles) =>
     new Promise<number[]>((resolve, reject) => {
         GM_xmlhttpRequest({
             method: 'POST',
@@ -174,4 +177,6 @@ export class ClickbaitScorer {
     }
 }
 
-export const clickbaitScorer = new ClickbaitScorer()
+// In-browser inference by default -- see clickbaitWorkerTransport.ts. gmTransport
+// (this file, above) is the fallback for local dev against server/scorer.py.
+export const clickbaitScorer = new ClickbaitScorer(workerTransport)

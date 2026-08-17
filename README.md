@@ -13,33 +13,81 @@ classifier and hidden above a threshold. Every upstream filter is left intact.
 
 ## Architecture
 
+As of v2.0.0, scoring runs **entirely client-side** — no local server needed. This is what makes
+the userscript actually publishable (GreasyFork, eventually); v1.x's `GM_xmlhttpRequest` ->
+local Python server design couldn't ship to anyone but its own developer.
+
 ```
 bilibili page
  └─ userscript (Tampermonkey)
      └─ ClickbaitFilter        implements upstream's ISubFilter
          └─ clickbaitScorer    batch(40/25ms) + LRU(5000) + circuit breaker + fail-open
-             └─ GM_xmlhttpRequest ──▶ 127.0.0.1:8731  (server/scorer.py)
-                                        └─ distilled XLM-RoBERTa (server/model/)
+             └─ workerTransport ──▶ Web Worker (bundled, vite `?worker&inline`)
+                                       └─ transformers.js (@huggingface/transformers)
+                                            ├─ ONNX Runtime Web, WASM backend
+                                            │  (embedded in the built script -- vite auto-bundles
+                                            │   onnxruntime-web's own `import.meta.url` wasm
+                                            │   reference; this is *more* self-contained than a
+                                            │   live fetch, not less, and was chosen after a
+                                            │   self-hosted-on-HF alternative failed -- see below)
+                                            └─ Penn1357/bilibili-clickbait-xlmr (HF Hub, fp32,
+                                               unquantized, ~1.1GB, fetched once and cached by
+                                               the browser -- Cache API, handled internally by
+                                               transformers.js)
 ```
 
-`ClickbaitFilter.check()` follows upstream's contract exactly — resolve to keep a card, reject to hide
-it — so it slots in beside `KeywordFilter` with no pipeline changes.
+`ClickbaitFilter.check()` and `clickbaitScorer`'s batching/caching/circuit-breaker are unchanged
+from v1.x — only the `Transport` underneath swapped (the seam that abstraction was built for).
+`gmTransport` (→ `server/scorer.py`) is kept for local dev/training-parity checks, just no longer
+the default; `workerTransport` (`src/utils/clickbaitWorkerTransport.ts`) is.
+
+**Verified, not assumed**: the in-browser path was tested standalone (esbuild-bundled worker,
+loaded as a real `Worker` in a browser tab, scored against the full 200-title human-labeled test)
+before being wired into the userscript build. In-browser AUC: **0.8651**, vs. 0.8651 for the
+Python ONNX export and 0.865 for the original PyTorch model — per-title score differences topped
+out at 1.4e-6, floating-point noise, not a real discrepancy.
+
+**A design choice that didn't survive contact with reality**: the original plan was to
+self-host ONNX Runtime's WASM runtime on the same HF repo (`wasm/` folder, still there, currently
+unused) and point `env.backends.onnx.wasm.wasmPaths` at it explicitly, to avoid depending on a
+third-party CDN. That failed — HF Hub's `resolve/main/` file serving doesn't set a MIME type
+dynamic `import()` accepts for the `.mjs` loader specifically (plain `fetch()` of the model/
+tokenizer files is unaffected). Fix: don't set `wasmPaths` at all. Vite's own build already
+resolves onnxruntime-web's internal `new URL(..., import.meta.url)` wasm reference and inlines it
+as a `data:` URL directly into the built script — which turned out to be a *better* fit for "not
+dependent on a host we don't control" than the original self-hosting plan, not a worse one.
+
+**Real, measured cost of "no quantization"**: fp32 WASM inference measured ~485ms/title (30-title
+warm batch, model already cached) vs. ~44ms/title for the old native PyTorch server. That's the
+direct, accepted tradeoff of full precision over speed — not a bug, a choice, now with real numbers
+attached instead of a prediction.
 
 ## Setup
+
+```bash
+pnpm install && pnpm run build          # -> dist/*.user.js (~65MB -- the built script embeds
+                                          #    transformers.js + the ONNX runtime; the 1.1GB model
+                                          #    itself is fetched at runtime, not bundled)
+```
+
+Install `dist/*.user.js` in Tampermonkey, then on bilibili: 视频过滤 → **标题党过滤（AI 模型）** →
+enable. First use downloads the model (~1.1GB, one-time, cached by the browser afterward). Default
+threshold is 68% (tuned for this model — see Calibration below).
+
+> **Chrome 138+** requires enabling **"Allow User Scripts"** on the Tampermonkey entry in
+> `chrome://extensions`. Without it userscripts install but never execute, with no error shown.
+
+### Local-server mode (dev only)
 
 ```bash
 pip install torch transformers
 python server/scorer.py                 # http://127.0.0.1:8731 — needs server/model/ populated,
                                           # see "Reproducing the model" below
-
-pnpm install && pnpm run build          # -> dist/*.user.js
 ```
 
-Install `dist/*.user.js` in Tampermonkey, then on bilibili: 视频过滤 → **标题党过滤（AI 模型）** →
-enable. Default threshold is 69% (tuned for this model — see Calibration below).
-
-> **Chrome 138+** requires enabling **"Allow User Scripts"** on the Tampermonkey entry in
-> `chrome://extensions`. Without it userscripts install but never execute, with no error shown.
+Swap `clickbaitScorer`'s constructor argument from `workerTransport` to `gmTransport` in
+`src/utils/clickbaitScorer.ts` to use this instead — useful for testing a new checkpoint before
+going through a full ONNX export + HF upload cycle.
 
 ## The model
 
