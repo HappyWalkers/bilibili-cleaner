@@ -36,10 +36,55 @@ def load_source(title_file, score_file, tag):
           f"(dropped {len(titles)-len(out)} with no codex score)", flush=True)
     return out
 
+def load_bilibili():
+    """pool.jsonl grew from 3,126 to 10,684 titles across two scrape rounds.
+    codex_pool.json + codex_pool2.json cover it in two order-preserved parts
+    (see the merge step in the commit log). agy_pool_full.json (Gemini,
+    validated independently at AUC 0.913 on the 200-title test vs codex's
+    0.909, correlation 0.81 -- genuinely complementary, not redundant) covers
+    the whole pool in one pass once labeled.
+
+    Soft label = average of codex + agy when both are available for a title,
+    else whichever one is. Averaging the two teachers measured AUC 0.930 on
+    the 200-title test vs 0.909/0.913 for either alone -- this is the reason
+    to prefer it over a single-teacher signal, not just belt-and-suspenders."""
+    rows = [json.loads(l) for l in open(HERE / "pool.jsonl", encoding="utf-8")]
+    titles = [r["title"] for r in rows]
+    s1 = json.load(open(HERE / "codex_pool.json"))
+    pool2_file = HERE / "codex_pool2.json"
+    if pool2_file.exists():
+        codex_scores = s1 + json.load(open(pool2_file))
+    else:
+        codex_scores = s1 + [None] * (len(titles) - len(s1))
+    assert len(codex_scores) == len(titles), ("pool.jsonl vs codex", len(codex_scores), len(titles))
+
+    agy_file = HERE / "agy_pool_full.json"
+    agy_scores = json.load(open(agy_file)) if agy_file.exists() else [None] * len(titles)
+    if agy_file.exists():
+        assert len(agy_scores) == len(titles), ("pool.jsonl vs agy", len(agy_scores), len(titles))
+    else:
+        print("  note: agy_pool_full.json not found yet, training on codex-only labels", flush=True)
+
+    scores = []
+    for c, a in zip(codex_scores, agy_scores):
+        if c is not None and a is not None:
+            scores.append((c + a) / 2)
+        elif c is not None:
+            scores.append(c)
+        else:
+            scores.append(a)  # may be None too; filtered below
+
+    out = [(t, sc, "bilibili") for t, sc in zip(titles, scores) if sc is not None]
+    both = sum(1 for c, a in zip(codex_scores, agy_scores) if c is not None and a is not None)
+    print(f"  {'bilibili':<10} {len(titles)} titles, {len(out)} usable "
+          f"({both} averaged codex+agy, {len(out)-both} single-teacher, "
+          f"{len(titles)-len(out)} dropped with no score at all)", flush=True)
+    return out
+
 print("loading training sources:", flush=True)
 combined = []
 if "bilibili" in SOURCES:
-    combined += load_source("pool.jsonl", "codex_pool.json", "bilibili")
+    combined += load_bilibili()
 cnspoil_titles_f = HERE / "cnspoil_titles.json"
 cnspoil_scores_f = HERE / "codex_cnspoil.json"
 if "cnspoil" in SOURCES and cnspoil_titles_f.exists() and cnspoil_scores_f.exists():

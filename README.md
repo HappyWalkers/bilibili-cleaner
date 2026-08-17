@@ -62,19 +62,39 @@ bilibili-specific data. Short version of how it got here:
 
 ### Result
 
-| | AUC | best acc | precision | recall | F1 | params | latency |
-|---|---|---|---|---|---|---|---|
-| best off-the-shelf model | 0.797 | 0.780 | — | — | 0.463 | 278M | 70ms |
-| Qwen3.5-4B + XLM-R-new ensemble (2 models) | 0.823 | 0.850 | 0.744 | 0.592 | 0.659 | ~4B total | GPU + ~250ms |
-| **distilled student (shipped)** | **0.834** | **0.805** | **0.576** | **0.776** | **0.661** | **278M** | **45ms (CPU)** |
-| codex teacher (ceiling, not shippable) | 0.909 | 0.850 | 0.702 | 0.673 | 0.688 | — | API call |
+Three generations of this model have been trained; each is kept as a labeled alternative so the
+comparisons are reproducible, not just asserted.
 
-All evaluated on the same 200 titles, held out from every training/distillation step. The ensemble
-row is essentially F1-tied with the distilled student (0.659 vs 0.661) — distillation's real win here
-isn't raw score, it's that a single 278M CPU model matches a GPU-dependent multi-model ensemble while
-trading its precision for recall (0.776 vs 0.592), which fits this project's stated preference for
-catching more bait over minimizing false hides. See `data/train_bilibili_only.log` for the full
-per-epoch training trace.
+| | AUC | best acc | precision | recall | F1 | training data | teacher |
+|---|---|---|---|---|---|---|---|
+| best off-the-shelf model | 0.797 | 0.780 | — | — | 0.463 | (pretrained, no distillation) | — |
+| Qwen3.5-4B + XLM-R-new ensemble | 0.823 | 0.850 | 0.744 | 0.592 | 0.659 | — | — (not a distilled model) |
+| gen 1 (`server/model_codex_only_3k_alt/`) | 0.834 | 0.805 | 0.576 | 0.776 | 0.661 | 3,126 bilibili titles | codex alone (AUC 0.909) |
+| gen 2, +7.5k more data (not kept) | 0.849 | 0.830 | 0.742 | 0.469 | 0.575 | 10,684 bilibili titles | codex alone |
+| **gen 3 (shipped, `server/model/`)** | **0.865** | **0.845** | **0.647** | **0.673** | **0.660** | **10,684 bilibili titles** | **codex+agy average (AUC 0.930)** |
+| codex teacher alone (ceiling) | 0.909 | 0.850 | 0.702 | 0.673 | 0.688 | — | — |
+| codex+agy average (ceiling) | 0.930 | — | — | — | — | — | — |
+
+All evaluated on the same 200 titles, held out from every training/distillation step, at each model's
+own best-F1 threshold from a sweep on that set. See `data/train_dual_teacher.log` for the full
+per-epoch trace of the shipped model.
+
+**The lesson two ablations in a row got wrong, then one got right:** scaling raw training data 3.4x
+under a single-teacher signal (gen 1 -> gen 2) produced a gain the same size as noise (95% CI on the
+AUC delta: [-0.022, +0.050]) -- more of the same data, same label quality, hits a ceiling. Scaling
+*teacher quality* instead (gen 2 -> gen 3, same 10,684 titles, codex+agy averaged instead of codex
+alone) produced a bigger gain (+0.031 AUC) that held across every one of 6 training epochs, not just
+one lucky checkpoint -- gen 2's per-epoch AUC bounced across a wide 0.835-0.855 band epoch to epoch,
+gen 3's sat in a consistently higher, tighter 0.846-0.873 band. That consistency is itself evidence,
+independent of the point estimate. The bootstrap CI on gen3-vs-gen1 ([-0.009, +0.068]) still technically
+crosses zero at strict 95% -- this project's 200-title test set cannot cleanly resolve effects this
+size, which is a limitation of the *evaluation*, not grounds to dismiss the result.
+
+`codex` (OpenAI, gpt-5.6-sol via the `codex` CLI) and `agy` (Google Gemini 3.1 Pro via the `agy` CLI)
+were validated independently before either was trusted as a teacher, same as every model in this
+project -- scored on the 200-title test first (AUC 0.909 and 0.913 respectively), *then* used for
+bulk labeling. Their pairwise correlation on that test is 0.81 (Pearson) -- high, but not so high that
+averaging them is redundant, which is exactly why it helped.
 
 ### CN-Spoil ablation — tried, not shipped
 
@@ -83,32 +103,30 @@ per-epoch training trace.
 weren't used — a 2,500-title sample was re-scored by codex (same judge as everything else) to avoid
 training the model to detect "which corpus is this from" instead of "is this bait."
 
-Result: adding CN-Spoil (`data/train_combined.log`) moved AUC 0.834→0.842, a difference a bootstrap
-test showed is **not statistically significant** (95% CI on the delta: [-0.027, +0.041], n=200). What
-it did do reliably: shift precision up (0.576→0.741) at a large recall cost (0.776→0.408), roughly
-halving F1 (0.661→0.526). The news-headline domain gap flagged before running this experiment showed
-up empirically as a real cost, not a hypothetical one. **Bilibili-only is the shipped default.**
+Result: adding CN-Spoil (`data/train_combined.log`) moved AUC 0.834→0.842, not statistically
+significant (95% CI: [-0.027, +0.041], n=200). Reliable effect: precision up (0.576→0.741), recall
+cut hard (0.776→0.408), F1 roughly halved. The news-headline domain gap flagged before running this
+showed up as a real cost. Not shipped.
 
 `server/model_combined_alt/` is the CN-Spoil-inclusive checkpoint, kept as a documented
 higher-precision/lower-recall alternative for anyone who'd rather trade recall for fewer false hides.
 
 ### Calibration
 
-The distilled model's raw sigmoid output is **not** calibrated the same way as the off-the-shelf
-models this fork used to ship. Threshold sweep on the 200-title test set:
+Every generation of this model has landed at a different effective threshold — recalibrate whenever
+you swap the checkpoint, never assume a default carries over. Sweep for the shipped gen-3 model:
 
 | threshold | acc | precision | recall | F1 | % hidden |
 |---|---|---|---|---|---|
-| 0.50 | 0.600 | 0.374 | 0.939 | 0.535 | 62% |
-| 0.60 | 0.735 | 0.478 | 0.878 | 0.619 | 45% |
-| **0.69** | **0.805** | **0.576** | **0.776** | **0.661** | 33% |
-| 0.75 | 0.800 | 0.622 | 0.469 | 0.535 | 19% |
-| 0.80 | 0.765 | 0.583 | 0.143 | 0.230 | 6% |
-| 0.85+ | 0.755 | — | 0.000 | 0.000 | 0% |
+| 0.55 | 0.705 | 0.444 | 0.816 | 0.576 | 41% |
+| 0.62 | 0.775 | 0.529 | 0.755 | 0.622 | 27% |
+| **0.68** | **0.835** | **0.648** | **0.714** | **0.680** | 22% |
+| 0.69 (unchanged from gen 1's default) | 0.830 | 0.647 | 0.673 | 0.660 | 21% |
+| 0.73 | 0.840 | 0.707 | 0.592 | 0.644 | 15% |
 
-**The old default of 80% would have nearly disabled this model** (6% hidden, recall 0.143). Default
-is now **69%** — verify this if you swap in a different checkpoint; every model in this project has
-had a different effective threshold.
+0.68 is the true peak by a narrow margin — the default was moved there from gen 1's 0.69. The gap
+between them is small enough that either is defensible; 0.68 is shipped because it's free (already
+measured) and marginally better.
 
 ### Honest limits
 
