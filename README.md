@@ -62,7 +62,11 @@ warm batch, model already cached) vs. ~44ms/title for the old native PyTorch ser
 direct, accepted tradeoff of full precision over speed — not a bug, a choice, now with real numbers
 attached instead of a prediction.
 
-## Setup
+## Install
+
+**Easiest**: [download the built script from the latest release](https://github.com/HappyWalkers/bilibili-cleaner/releases/tag/clickbait-v2.1.0) and open it -- Tampermonkey will offer to install directly. No build tools needed.
+
+**From source** (for development, or to audit before installing):
 
 ```bash
 pnpm install && pnpm run build          # -> dist/*.user.js (~65MB -- the built script embeds
