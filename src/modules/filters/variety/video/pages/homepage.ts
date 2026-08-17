@@ -396,11 +396,11 @@ export const videoFilterHomepageGroups: Group[] = [
             {
                 type: 'switch',
                 id: GM_KEYS.black.clickbait.statusKey,
-                name: '启用 标题党过滤（需本地评分服务）',
+                name: '启用 标题党过滤',
                 noStyle: true,
                 description: [
                     '用 XLM-RoBERTa 模型判断标题是否为标题党，替代关键词硬匹配',
-                    '需先运行 server/scorer.py，未运行时不会隐藏任何视频',
+                    '模型在浏览器本地运行，首次启用需下载一次（约 1.1GB），此后无需网络',
                 ],
                 enableFn: () => {
                     mainFilter.videoClickbaitFilter.enable()
@@ -410,6 +410,10 @@ export const videoFilterHomepageGroups: Group[] = [
                     mainFilter.videoClickbaitFilter.disable()
                     mainFilter.checkFull()
                 },
+            },
+            {
+                type: 'progress',
+                id: 'clickbait-model-progress',
             },
             {
                 type: 'number',

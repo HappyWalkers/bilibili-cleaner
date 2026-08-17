@@ -67,15 +67,25 @@ function load() {
     if (!ready) {
         ready = (async () => {
             const progress_callback = throttledProgress((data) => post({ type: 'progress', data }))
-            const [tok, model] = await Promise.all([
-                AutoTokenizer.from_pretrained(MODEL_ID, { progress_callback }),
-                AutoModelForSequenceClassification.from_pretrained(MODEL_ID, {
-                    dtype: 'fp32',
-                    device: 'wasm',
-                    progress_callback,
-                }),
-            ])
-            return { tok, model }
+            try {
+                const [tok, model] = await Promise.all([
+                    AutoTokenizer.from_pretrained(MODEL_ID, { progress_callback }),
+                    AutoModelForSequenceClassification.from_pretrained(MODEL_ID, {
+                        dtype: 'fp32',
+                        device: 'wasm',
+                        progress_callback,
+                    }),
+                ])
+                // transformers.js's own progress events (initiate/download/progress/
+                // progress_total/done) don't include a single reliable "everything is
+                // ready" signal -- emit our own once both loads have actually resolved,
+                // rather than have the UI guess readiness from file-level event names.
+                post({ type: 'progress', data: { status: 'ready' } })
+                return { tok, model }
+            } catch (err) {
+                ready = undefined // allow a retry on the next score() call
+                throw err
+            }
         })()
     }
     return ready

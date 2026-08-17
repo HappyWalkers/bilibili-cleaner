@@ -1,9 +1,18 @@
-export type Item = ISwitchItem | INumberItem | IListItem | IEditorItem | IStringItem
+export type Item = ISwitchItem | INumberItem | IListItem | IEditorItem | IStringItem | IProgressItem
 
 interface IBaseItem {
     type: 'switch' | 'number' | 'radio' | 'editor'
 
     id: string
+}
+
+// 实时进度展示（只读，由 worker 事件驱动，不对应任何 GM key）
+export interface IProgressItem {
+    type: 'progress'
+
+    // 仅用作 Vue key 及日志标识，无 GM 存储含义
+    id: string
+    name?: string
 }
 
 // 开关功能

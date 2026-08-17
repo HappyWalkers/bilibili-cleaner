@@ -16,7 +16,7 @@ export default defineConfig({
             userscript: {
                 name: 'bilibili 标题党过滤器 (AI)',
                 namespace: 'http://tampermonkey.net/',
-                version: '2.0.0',
+                version: '2.1.0',
                 description:
                     '在 bilibili 页面净化大师基础上，用 XLM-RoBERTa 模型替代关键词匹配来过滤标题党视频',
                 author: 'festoney8 (fork: model-based clickbait filter)',
