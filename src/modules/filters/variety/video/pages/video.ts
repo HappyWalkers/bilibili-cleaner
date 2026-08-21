@@ -1,4 +1,4 @@
-import { unsafeWindow } from '$'
+import { filterRelatedVideos } from '#bridge/relatedVideoFilter'
 import { coreCheck } from '@/modules/filters/core/core'
 import config from '@/config'
 import { Group } from '@/types/collection'
@@ -108,15 +108,13 @@ class VideoFilterVideo implements IMainFilter {
             return
         }
         let revertAll = false
-        if (
-            !(
-                this.videoBvidFilter.isEnable ||
-                this.videoDurationFilter.isEnable ||
-                this.videoTitleFilter.isEnable ||
-                this.videoUploaderFilter.isEnable ||
-                this.videoUploaderKeywordFilter.isEnable
-            )
-        ) {
+        if (!(
+            this.videoBvidFilter.isEnable ||
+            this.videoDurationFilter.isEnable ||
+            this.videoTitleFilter.isEnable ||
+            this.videoUploaderFilter.isEnable ||
+            this.videoUploaderKeywordFilter.isEnable
+        )) {
             revertAll = true
         }
         const timer = performance.now()
@@ -178,10 +176,7 @@ class VideoFilterVideo implements IMainFilter {
                     }
                 }
             }
-            const rel = unsafeWindow.__INITIAL_STATE__?.related
-            if (rel?.length && blackBvids.size) {
-                unsafeWindow.__INITIAL_STATE__!.related = rel.filter((v) => !(v.bvid && blackBvids.has(v.bvid)))
-            }
+            filterRelatedVideos([...blackBvids])
         }
         const time = (performance.now() - timer).toFixed(1)
         logger.debug(`VideoFilterVideo hide ${blackCnt} in ${videos.length} videos, mode=${mode}, time=${time}`)

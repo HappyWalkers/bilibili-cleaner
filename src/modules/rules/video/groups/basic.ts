@@ -1,7 +1,7 @@
 import { Item } from '@/types/item'
 import { GM_getValue } from '$'
-import { matchAvidBvid, matchBvid } from '@/utils/tool'
-import URLHandlerInstance from '@/utils/urlHandler'
+import { registerUrlTransform, cleanUrl } from '#bridge/urlHandler'
+import { matchAvidBvid } from '@/utils/tool'
 
 export const videoBasicItems: Item[] = [
     {
@@ -15,53 +15,10 @@ export const videoBasicItems: Item[] = [
         name: 'BV号转AV号',
         noStyle: true,
         enableFn: async () => {
-            /**
-             * algo by bilibili-API-collect
-             * @see https://www.zhihu.com/question/381784377/answer/1099438784
-             * @see https://github.com/SocialSisterYi/bilibili-API-collect/issues/740
-             * @see https://socialsisteryi.github.io/bilibili-API-collect/docs/misc/bvid_desc.html
-             * @param url 网址
-             * @returns 输出纯数字av号
-             */
-            const bv2av = (url: string): string => {
-                const XOR_CODE = 23442827791579n
-                const MASK_CODE = 2251799813685247n
-                const BASE = 58n
-                const data = 'FcwAPNKTMug3GV5Lj7EJnHpWsx4tb8haYeviqBz6rkCy12mUSDQX9RdoZf'
-                const dec = (bvid: string): number => {
-                    const bvidArr = Array.from<string>(bvid)
-                    ;[bvidArr[3], bvidArr[9]] = [bvidArr[9], bvidArr[3]]
-                    ;[bvidArr[4], bvidArr[7]] = [bvidArr[7], bvidArr[4]]
-                    bvidArr.splice(0, 3)
-                    const tmp = bvidArr.reduce((pre, bvidChar) => pre * BASE + BigInt(data.indexOf(bvidChar)), 0n)
-                    return Number((tmp & MASK_CODE) ^ XOR_CODE)
-                }
-
-                try {
-                    if (url.includes('bilibili.com/video/BV')) {
-                        const bvid = matchBvid(url)
-                        if (bvid) {
-                            // 保留query string中分P参数, anchor中reply定位
-                            const urlObj = new URL(url)
-                            const params = new URLSearchParams(urlObj.search)
-                            let partNum = ''
-                            if (params.has('p')) {
-                                partNum += `?p=${params.get('p')}`
-                            }
-                            const aid = dec(bvid)
-                            if (partNum || urlObj.hash) {
-                                return `https://www.bilibili.com/video/av${aid}/${partNum}${urlObj.hash}`
-                            }
-                            return `https://www.bilibili.com/video/av${aid}`
-                        }
-                    }
-                    return url
-                } catch {
-                    return url
-                }
-            }
-            URLHandlerInstance.cleanFnArr.push(bv2av)
-            URLHandlerInstance.clean()
+            // implementation: src/utils/urlTransforms.ts's bv2av (named so it can cross the
+            // MAIN/isolated bridge in the extension build -- see #bridge/urlHandler)
+            registerUrlTransform('bv2av')
+            cleanUrl()
         },
     },
     {

@@ -1,7 +1,6 @@
-import { unsafeWindow } from '$'
 import { Item } from '@/types/item'
+import { dispatchLiveBasicAction } from '#bridge/liveBasic'
 import { waitForHead } from '@/utils/init'
-import { logger } from '@/utils/logger'
 
 let observer: MutationObserver | undefined
 
@@ -86,29 +85,7 @@ export const liveBasicItems: Item[] = [
             if (self !== top) {
                 return
             }
-            const qualityFn = () => {
-                const player = unsafeWindow.livePlayer || unsafeWindow.EmbedPlayer?.instance
-                if (player) {
-                    try {
-                        const info = player?.getPlayerInfo()
-                        const arr = player?.getPlayerInfo().qualityCandidates
-                        if (info && arr && arr.length) {
-                            let maxQn = 0
-                            arr.forEach((v) => {
-                                if (v.qn && parseInt(v.qn) > maxQn) {
-                                    maxQn = parseInt(v.qn)
-                                }
-                            })
-                            if (maxQn && info.quality && maxQn > parseInt(info.quality)) {
-                                player.switchQuality(`${maxQn}`)
-                            }
-                        }
-                    } catch (err) {
-                        logger.error('auto-best-quality error', err)
-                    }
-                }
-            }
-            setTimeout(qualityFn, 2000)
+            dispatchLiveBasicAction('live-basic.auto-best-quality.enable')
         },
         enableFnRunAt: 'document-end',
     },

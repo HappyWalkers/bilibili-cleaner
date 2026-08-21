@@ -1,5 +1,5 @@
 import { Item } from '@/types/item'
-import fetchHook from '@/utils/fetch'
+import { registerFetchPreTransform } from '#bridge/fetchHook'
 
 export const homepageRcmdItems: Item[] = [
     {
@@ -89,17 +89,8 @@ export const homepageRcmdItems: Item[] = [
         id: 'homepage-increase-rcmd-load-size',
         name: '增大 视频载入 视频数量',
         enableFn: () => {
-            fetchHook.addPreFn((input: RequestInfo | URL, init: RequestInit | undefined): RequestInfo | URL => {
-                if (
-                    typeof input === 'string' &&
-                    input.includes('api.bilibili.com') &&
-                    input.includes('feed/rcmd') &&
-                    init?.method?.toUpperCase() === 'GET'
-                ) {
-                    input = input.replace('&ps=12&', '&ps=24&')
-                }
-                return input
-            })
+            // implementation: src/utils/fetchTransforms.ts's increaseRcmdLoadSize
+            registerFetchPreTransform('increaseRcmdLoadSize')
         },
     },
     {

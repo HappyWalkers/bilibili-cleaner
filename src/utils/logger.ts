@@ -22,9 +22,14 @@ const wrapper = (loggingFunc: (..._args: any[]) => void | undefined) => {
     }
 }
 
+const debugWrapper = wrapper(console.debug)
+
 export const logger = {
     log: wrapper(console.log),
     info: wrapper(console.info),
     error: wrapper(console.error),
-    debug: config.isDebugMode ? wrapper(console.debug) : () => {},
+    // reads config.isDebugMode lazily, per call -- not at module-load time (see config.ts)
+    debug: (...args: any[]) => {
+        if (config.isDebugMode) debugWrapper(...args)
+    },
 }

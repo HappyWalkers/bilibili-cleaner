@@ -6,6 +6,8 @@
     "scripts": {
         "dev": "vite",
         "build": "vue-tsc -b && vite build",
+        "dev:extension": "vite --config vite.config.extension.ts",
+        "build:extension": "vue-tsc -b && vite build --config vite.config.extension.ts",
         "prepare": "husky"
     },
     "packageManager": "pnpm@11.18.0+sha512.33d83c77da82f49fba836925c6f1b841181ec3132b670639bd012f7075f5c7cf634c5f870147c19aae7478fac01df09d8892e880454896edd23ee9b33757563c",
@@ -24,8 +26,10 @@
         "vue": "^3.5.40"
     },
     "devDependencies": {
+        "@crxjs/vite-plugin": "^2.7.1",
         "@eslint/js": "^10.0.1",
         "@thedutchcoder/postcss-rem-to-px": "^0.0.2",
+        "@types/chrome": "^0.2.6",
         "@types/node": "^25.9.5",
         "@vitejs/plugin-vue": "^6.0.8",
         "autoprefixer": "^10.5.4",

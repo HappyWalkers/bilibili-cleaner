@@ -1,12 +1,7 @@
 import { onScopeDispose, ref } from 'vue'
 import { watchDebounced } from '@vueuse/core'
-import {
-    GM_addValueChangeListener,
-    GM_getValue,
-    GM_removeValueChangeListener,
-    GM_setValue,
-    type GmValueListenerId,
-} from 'vite-plugin-monkey/dist/client'
+import { GM_addValueChangeListener, GM_getValue, GM_removeValueChangeListener, GM_setValue } from '$'
+import type { GmValueListenerId } from 'vite-plugin-monkey/dist/client'
 
 /**
  * 一个 GM Value 的响应式状态，支持双向同步和防抖写入

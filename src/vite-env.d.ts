@@ -2,6 +2,7 @@
 /// <reference types="vite-plugin-monkey/client" />
 /// <reference types="vite-plugin-monkey/style" />
 //// <reference types="vite-plugin-monkey/global" />
+/// <reference types="chrome" />
 
 declare module '*.vue' {
     import type { DefineComponent } from 'vue'

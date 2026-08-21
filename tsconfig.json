@@ -7,7 +7,8 @@
         "lib": ["DOM", "DOM.Iterable", "ES2021"],
         "skipLibCheck": true,
         "paths": {
-            "@/*": ["./src/*"]
+            "@/*": ["./src/*"],
+            "#bridge/*": ["./src/bridge/*.userscript.ts"]
         },
 
         /* Bundler mode */

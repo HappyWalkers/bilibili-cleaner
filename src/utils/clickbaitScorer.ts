@@ -1,5 +1,4 @@
 import { logger } from '@/utils/logger'
-import { GM_xmlhttpRequest } from 'vite-plugin-monkey/dist/client'
 import { workerTransport } from './clickbaitWorkerTransport'
 
 /**
@@ -22,35 +21,41 @@ const REQUEST_TIMEOUT_MS = 8000
 type Pending = { title: string; resolve: (v: number) => void }
 
 /** Injectable transport so the batching/caching logic is testable without GM APIs. */
-export type Transport = (
-    endpoint: string,
-    titles: string[],
-) => Promise<number[]>
+export type Transport = (endpoint: string, titles: string[]) => Promise<number[]>
 
 /** GM_xmlhttpRequest -> local server (server/scorer.py). Kept for local dev/eval
- * parity checks against the in-browser path; no longer the default. */
+ * parity checks against the in-browser path; no longer the default.
+ *
+ * Dynamic import, not a top-level one: 'vite-plugin-monkey/dist/client' references
+ * `__MONKEY_WINDOW_KEY__`, a global vite-plugin-monkey's own Vite plugin defines at build time --
+ * absent from the extension build (no monkey() plugin there), so a top-level import crashed the
+ * whole isolated-world bundle at load time even though gmTransport itself is never called in
+ * production (workerTransport is the default, below). Deferring to call time means this only
+ * matters if someone actually wires gmTransport in for local dev. */
 export const gmTransport: Transport = (endpoint, titles) =>
     new Promise<number[]>((resolve, reject) => {
-        GM_xmlhttpRequest({
-            method: 'POST',
-            url: endpoint,
-            headers: { 'Content-Type': 'application/json' },
-            data: JSON.stringify({ titles }),
-            timeout: REQUEST_TIMEOUT_MS,
-            onload: (res) => {
-                try {
-                    if (res.status !== 200) throw new Error(`HTTP ${res.status}`)
-                    const scores = JSON.parse(res.responseText)?.scores
-                    if (!Array.isArray(scores) || scores.length !== titles.length) {
-                        throw new Error('bad response shape')
+        import('vite-plugin-monkey/dist/client').then(({ GM_xmlhttpRequest }) => {
+            GM_xmlhttpRequest({
+                method: 'POST',
+                url: endpoint,
+                headers: { 'Content-Type': 'application/json' },
+                data: JSON.stringify({ titles }),
+                timeout: REQUEST_TIMEOUT_MS,
+                onload: (res) => {
+                    try {
+                        if (res.status !== 200) throw new Error(`HTTP ${res.status}`)
+                        const scores = JSON.parse(res.responseText)?.scores
+                        if (!Array.isArray(scores) || scores.length !== titles.length) {
+                            throw new Error('bad response shape')
+                        }
+                        resolve(scores)
+                    } catch (err) {
+                        reject(err)
                     }
-                    resolve(scores)
-                } catch (err) {
-                    reject(err)
-                }
-            },
-            onerror: (err) => reject(err),
-            ontimeout: () => reject(new Error('timeout')),
+                },
+                onerror: (err) => reject(err),
+                ontimeout: () => reject(new Error('timeout')),
+            })
         })
     })
 

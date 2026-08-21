@@ -4,10 +4,12 @@ import { defineConfig } from 'vite'
 import monkey from 'vite-plugin-monkey'
 import tailwindcss from '@tailwindcss/vite'
 import tailwindShadowDOM from 'vite-plugin-tailwind-shadowdom'
+import { bridgeAlias } from './build-plugins/bridgeAlias.ts'
 
 // https://vitejs.dev/config/
 export default defineConfig({
     plugins: [
+        bridgeAlias('userscript'),
         tailwindcss(),
         tailwindShadowDOM(),
         vue(),
