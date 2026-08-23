@@ -11,6 +11,17 @@
  * fp32, unquantized by design: full precision over download size/speed. See the
  * model card at https://huggingface.co/Penn1357/bilibili-clickbait-xlmr for the
  * accuracy/latency tradeoff this implies.
+ *
+ * device: 'auto', not 'wasm' -- transformers.js's browser build already bundles
+ * onnxruntime-web's WebGPU execution provider (it's the default ONNX runtime module
+ * for browsers, not an optional extra), and 'auto' orders execution providers as
+ * [webgpu, wasm] when `'gpu' in navigator` and falls back to [wasm] otherwise --
+ * automatic, built into the library, not hand-rolled here. WASM fp32 measured
+ * ~485ms/title (30-title warm batch); WebGPU is expected to be substantially
+ * faster where available. Not hardcoding 'webgpu' directly specifically to keep
+ * that automatic fallback for users without usable WebGPU (old GPUs, driver
+ * blocklists, disabled hardware acceleration) -- same fail-open spirit as the
+ * scorer's own circuit breaker in clickbaitScorer.ts.
  */
 import { AutoModelForSequenceClassification, AutoTokenizer } from '@huggingface/transformers'
 
@@ -40,7 +51,12 @@ type Outgoing = ScoreResult | ScoreError | ProgressMsg
 
 const post = (msg: Outgoing) => (self as unknown as Worker).postMessage(msg)
 
-let ready: Promise<{ tok: Awaited<ReturnType<typeof AutoTokenizer.from_pretrained>>; model: Awaited<ReturnType<typeof AutoModelForSequenceClassification.from_pretrained>> }> | undefined
+let ready:
+    | Promise<{
+          tok: Awaited<ReturnType<typeof AutoTokenizer.from_pretrained>>
+          model: Awaited<ReturnType<typeof AutoModelForSequenceClassification.from_pretrained>>
+      }>
+    | undefined
 
 function sigmoid(x: number): number {
     return 1 / (1 + Math.exp(-x))
@@ -72,7 +88,7 @@ function load() {
                     AutoTokenizer.from_pretrained(MODEL_ID, { progress_callback }),
                     AutoModelForSequenceClassification.from_pretrained(MODEL_ID, {
                         dtype: 'fp32',
-                        device: 'wasm',
+                        device: 'auto',
                         progress_callback,
                     }),
                 ])

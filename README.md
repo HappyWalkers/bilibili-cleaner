@@ -62,6 +62,19 @@ warm batch, model already cached) vs. ~44ms/title for the old native PyTorch ser
 direct, accepted tradeoff of full precision over speed — not a bug, a choice, now with real numbers
 attached instead of a prediction.
 
+**GPU via WebGPU, since v2.1.0**: `device: 'auto'` (was `'wasm'`) lets transformers.js try
+WebGPU first and fall back to WASM automatically when it's unavailable — no code branching needed,
+this is built into the library. Real measured result on an RTX 5060 laptop GPU: a cold, fresh
+20-title batch (fresh Worker, empty cache, first load after navigation) fully scored and filtered
+in **~602ms** (~30ms/title end-to-end, including tokenization and batching overhead) — roughly
+15x+ faster than the fp32-WASM baseline above. Falls back to WASM cleanly and correctly on
+machines without a usable WebGPU adapter (verified directly: old GPUs, disabled hardware
+acceleration, driver blocklists). One Linux-specific note from testing: some hybrid-graphics laptop
+setups (integrated + discrete GPU) have Vulkan disabled by Chrome's own driver-bug-list by default,
+which blocks WebGPU down to CPU software emulation (SwiftShader) — `chrome://flags` doesn't have a
+toggle for this, but launching Chrome with `--enable-features=Vulkan` fixed it in testing. Most
+users won't need this; it's specific to that class of Linux setup.
+
 ## Install
 
 **Easiest**: [download the built script from the latest release](https://github.com/HappyWalkers/bilibili-cleaner/releases/tag/clickbait-v2.1.0) and open it -- Tampermonkey will offer to install directly. No build tools needed.
