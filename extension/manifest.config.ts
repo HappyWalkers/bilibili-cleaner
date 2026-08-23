@@ -11,7 +11,7 @@ import { defineManifest } from '@crxjs/vite-plugin'
 export default defineManifest({
     manifest_version: 3,
     name: 'bilibili 标题党过滤器 (AI)',
-    version: '2.1.0',
+    version: '2.2.0',
     description: '在 bilibili 页面净化大师基础上，用 XLM-RoBERTa 模型替代关键词匹配来过滤标题党视频',
     permissions: ['storage', 'contextMenus'],
     host_permissions: ['https://huggingface.co/*'],
