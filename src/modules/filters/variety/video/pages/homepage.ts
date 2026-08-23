@@ -156,18 +156,16 @@ class VideoFilterHomepage implements IMainFilter {
             return
         }
         let revertAll = false
-        if (
-            !(
-                this.videoBvidFilter.isEnable ||
-                this.videoDurationFilter.isEnable ||
-                this.videoViewsFilter.isEnable ||
-                this.videoTitleFilter.isEnable ||
-                this.videoClickbaitFilter.isEnable ||
-                this.videoUploaderFilter.isEnable ||
-                this.videoUploaderKeywordFilter.isEnable ||
-                this.videoPubdateFilter.isEnable
-            )
-        ) {
+        if (!(
+            this.videoBvidFilter.isEnable ||
+            this.videoDurationFilter.isEnable ||
+            this.videoViewsFilter.isEnable ||
+            this.videoTitleFilter.isEnable ||
+            this.videoClickbaitFilter.isEnable ||
+            this.videoUploaderFilter.isEnable ||
+            this.videoUploaderKeywordFilter.isEnable ||
+            this.videoPubdateFilter.isEnable
+        )) {
             revertAll = true
         }
         const timer = performance.now()
@@ -398,6 +396,12 @@ export const videoFilterHomepageGroups: Group[] = [
                 id: GM_KEYS.black.clickbait.statusKey,
                 name: '启用 标题党过滤',
                 noStyle: true,
+                // On by default -- this filter is the whole point of the extension, and the
+                // only entry point to its toggle (the side buttons) is itself hidden by
+                // default, so an opt-in default meant a fresh install did nothing at all.
+                // An explicit user `false` still wins: loadSwitchItem/SwitchComp both read
+                // GM_getValue(id, defaultEnable), so a stored value overrides this.
+                defaultEnable: true,
                 description: [
                     '用 XLM-RoBERTa 模型判断标题是否为标题党，替代关键词硬匹配',
                     '模型在浏览器本地运行，首次启用需下载一次（约 1.1GB），此后无需网络',
@@ -421,7 +425,7 @@ export const videoFilterHomepageGroups: Group[] = [
                 name: '判定阈值（越高越保守）',
                 minValue: 50,
                 maxValue: 99,
-                defaultValue: 68,  // tuned for the distilled model (server/model/); see server/tests/test_scorer.py
+                defaultValue: 68, // tuned for the distilled model (server/model/); see server/tests/test_scorer.py
                 step: 1,
                 addonText: '%',
                 disableValue: -1,
